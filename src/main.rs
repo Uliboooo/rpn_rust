@@ -3,11 +3,9 @@ fn main() {
         println!("Please input formula.\nex: 1 + 2 is 1 2 +\nDelimiter is half-width space.");
         let input_formula = get_input();
         let delimited_input_fomula = delimit(&input_formula);
-        // let mut operands = Vec::<f64>::new();
         let mut stack = Vec::<f64>::new();
         let mut result = 0.0;
         let mut double_operator_count = false;
-        // let mut index = 0;
 
         for i in delimited_input_fomula {
             if is_numeric(i) == true {
@@ -15,27 +13,13 @@ fn main() {
                 stack.push(i.parse::<f64>().unwrap_or(0.0));
             } else { //演算子の場合
                 if double_operator_count == false {
-                    let last_index = stack.len() - 1;
-                    println!("ope1: {}\nope2: {}", last_index - 1, last_index);
-                    result =  calculation(stack[last_index - 1], stack[last_index], i);
-                    println!("stack: {:?}", stack); //デバッグ用
-                    println!("ope1: {}\nope2: {}", last_index - 1, last_index);
-                    stack.remove(last_index - 1); //ope1の削除
-                    stack.remove(last_index); //ope2の削除
+                    // let last_index = stack.len() - 1;
+                    result =  calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
+                    for _ in 0..2 {
+                        stack.remove(stack.len() - 1);
+                    }
                     stack.push(result); //結果の挿入
-                    // stack.remove(index + 1);
-                    // operands.clear();
-                    // stack.push(result);
                 }
-                // println!("result stack: {:?}", stack); //デバッグ用
-                // if double_operator_count == true {
-                //     result = calculation(stack[index], stack[index + 1], i);
-                //     stack.clear();
-                //     stack.push(result);
-                //     // result_stack.clear();
-                //     // index += 1;
-                // }
-                // double_operator_count = true;
             }
         }
         println!("{}\nAgain?(y/n)", result);
@@ -56,14 +40,6 @@ fn get_input() -> String { //String型で入力を返す
 fn delimit(input: &String) -> Vec<&str>{ //文字列を空白で区切りベクタにして返す
     input.split_whitespace().collect()
 }
-
-// fn check_syntax(checked_input: String) {
-//     for c in delimit(checked_input) { //順番にできるようにする。添え字?
-//         if is_numeric(&c.to_sring()) == true { //数値の場合
-//         } else { //演算子の場合
-//         }
-//     }
-// }
 
 fn is_numeric(input: &str) -> bool { //入力が数値ならtrue, 演算子ならfalse
     match input.parse::<f64>() {
