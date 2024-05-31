@@ -2,7 +2,7 @@ use regex::Regex;
 
 fn main() {
     loop {
-         println!("式を入力してください。\n例: 1 + 2 → 1 2 +\n値や演算子同士は半角スペースで区切ってください。");
+        println!("式を入力してください。\n例: 1 + 2 → 1 2 +\n値や演算子同士は半角スペースで区切ってください。");
         let input_formula = get_input();
         if check_syntax(&input_formula) == false {
             println!("計算不可能な文字が含まれています。もう1度入力してください");
@@ -11,21 +11,16 @@ fn main() {
         let delimited_input_fomula = delimit(&input_formula);
         let mut stack = Vec::<f64>::new();
         let mut result = 0.0;
-        let mut double_operator_count = false;
 
         for i in delimited_input_fomula {
-            if is_numeric(i) == true {
-                double_operator_count = false;
+            if is_numeric(i) == true { //オペランドの場合
                 stack.push(i.parse::<f64>().unwrap_or(0.0));
             } else { //演算子の場合
-                if double_operator_count == false {
-                    // let last_index = stack.len() - 1;
-                    result =  calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
-                    for _ in 0..2 {
-                        stack.remove(stack.len() - 1);
-                    }
-                    stack.push(result); //結果の挿入
+                result =  calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
+                for _ in 0..2 {
+                    stack.remove(stack.len() - 1);
                 }
+                stack.push(result); //結果の挿入
             }
         }
         println!("{}\nもう一度計算しますか?(y/n)", result);
