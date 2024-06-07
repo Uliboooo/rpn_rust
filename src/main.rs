@@ -63,6 +63,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> f64{
 
 fn main() {
     loop {
+        println!("rpn_rust\nver.1.1");
         println!("式を入力してください。\n例: 1 + 2 → 1 2 +\n値や演算子同士は半角スペースで区切ってください。");
         let input_formula = get_input();
         if check_syntax(&input_formula) == false {
