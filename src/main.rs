@@ -1,35 +1,5 @@
 use regex::Regex;
 
-fn main() {
-    loop {
-        println!("式を入力してください。\n例: 1 + 2 → 1 2 +\n値や演算子同士は半角スペースで区切ってください。");
-        let input_formula = get_input();
-        if check_syntax(&input_formula) == false {
-            println!("計算不可能な文字が含まれています。もう1度入力してください");
-            continue;
-        }
-        let delimited_input_fomula = delimit(&input_formula);
-        let mut stack = Vec::<f64>::new();
-        let mut result = 0.0;
-
-        for i in delimited_input_fomula {
-            if is_numeric(i) == true { //オペランドの場合
-                stack.push(i.parse::<f64>().unwrap_or(0.0));
-            } else { //演算子の場合
-                result =  calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
-                for _ in 0..2 {
-                    stack.remove(stack.len() - 1);
-                }
-                stack.push(result); //結果の挿入
-            }
-        }
-        println!("{}\nもう一度計算しますか?(y/n)", result);
-        if get_input() == "n".to_string() {
-            break;
-        }
-    }
-}
-
 fn get_input() -> String { //String型で入力を返す
     let mut word = String::new();
     std::io::stdin()
@@ -72,4 +42,38 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
         power_result *= operand_1
     }
     power_result
+}
+
+fn stack_manage(delimited_input: Vec<&str>) -> f64{
+    let mut stack = Vec::<f64>::new();
+    let mut result = 0.0;
+    for i in delimited_input {
+        if is_numeric(i) == true { //オペランドの場合
+            stack.push(i.parse::<f64>().unwrap_or(0.0));
+        } else { //演算子の場合
+            result =  calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
+            for _ in 0..2 {
+                stack.remove(stack.len() - 1);
+            }
+            stack.push(result); //結果の挿入
+        }
+    }
+    result
+}
+
+fn main() {
+    loop {
+        println!("式を入力してください。\n例: 1 + 2 → 1 2 +\n値や演算子同士は半角スペースで区切ってください。");
+        let input_formula = get_input();
+        if check_syntax(&input_formula) == false {
+            println!("計算不可能な文字が含まれています。もう1度入力してください");
+            continue;
+        }
+        let delimited_input_fomula = delimit(&input_formula);
+        let result = stack_manage(delimited_input_fomula);
+        println!("{}\nもう一度計算しますか?(y/n)", result);
+        if get_input() == "n".to_string() {
+            break;
+        }
+    }
 }
