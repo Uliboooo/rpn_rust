@@ -8,6 +8,16 @@ fn get_input() -> String { //String型で入力を返す
     word.trim().to_string()
 }
 
+fn check_halfspace(checked_string: &String) -> bool {
+    let re = Regex::new(r"(\d\s\W)+$").unwrap();
+    if re.is_match(&checked_string) {
+        true
+    } else {
+        println!("演算子の間にスペースが含まれていない可能性があります。もう一度入力してください。\n");
+        false
+    }
+}
+
 fn check_length(checked_string: &String) -> bool{
     if checked_string.len() == 0 {
         println!("式が入力されていない可能性があります。もう一度入力してください。\n");
@@ -31,6 +41,8 @@ fn check_syntax(checked_string: &String) -> bool { //入力に演算不可能な
     if check_unavailable_character(checked_string) == false {
         false
     } else if check_length(checked_string) == false {
+        false
+    } else if check_halfspace(checked_string) == false{
         false
     } else {
         true
@@ -87,8 +99,8 @@ fn stack_manage(delimited_input: Vec<&str>) -> f64{
 }
 
 fn main() {
+    println!("rpn_rust: ver.1.2\n");
     loop {
-        println!("rpn_rust\nver.1.1");
         println!("式を入力してください。\n例: 1 + 2 → 1 2 +\n値や演算子同士は半角スペースで区切ってください。");
         let input_formula = get_input();
         if check_syntax(&input_formula) == false {continue;}
