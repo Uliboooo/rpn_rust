@@ -88,6 +88,10 @@ fn stack_manage(delimited_input: Vec<&str>) -> f64{
         if is_numeric(i) == true { //オペランドの場合
             stack.push(i.parse::<f64>().unwrap_or(0.0));
         } else { //演算子の場合
+            if stack.len() < 2 {
+                println!("被演算子(数)が足りない可能性があります。もう一度入力してください。\n");
+                continue;
+            }
             result =  calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
             for _ in 0..2 {
                 stack.remove(stack.len() - 1);
@@ -99,7 +103,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> f64{
 }
 
 fn main() {
-    println!("rpn_rust: ver.1.2\n");
+    println!("rpn_rust: ver.1.3\n");
     loop {
         println!("式を入力してください。\n例: 1 + 2 → 1 2 +\n値や演算子同士は半角スペースで区切ってください。");
         let input_formula = get_input();
