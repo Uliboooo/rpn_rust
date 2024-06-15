@@ -82,7 +82,6 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
 
 fn stack_manage(delimited_input: Vec<&str>) -> f64{
     let mut stack = Vec::<f64>::new();
-    // let mut result = delimited_input[0];
     let mut result = if is_numeric(delimited_input[0]) == true {delimited_input[0].parse::<f64>().unwrap_or(0.0)} else {0.0};
     for i in delimited_input {
         if is_numeric(i) == true { //オペランドの場合
