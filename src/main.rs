@@ -9,12 +9,13 @@ fn get_input() -> String { //String型で入力を返す
 }
 
 fn check_halfspace(checked_string: &String) -> bool {
-    let re = Regex::new(r"(\d\s\W)+$").unwrap();
+    let re = Regex::new(r"\d[^\w\s]").unwrap();
+    // let re1 = Regex::new(r"\W\d").unwrap();
     if re.is_match(&checked_string) {
-        true
-    } else {
         println!("演算子の間にスペースが含まれていない可能性があります。もう一度入力してください。\n");
         false
+    } else {
+        true
     }
 }
 
@@ -82,24 +83,38 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
 
 fn stack_manage(delimited_input: Vec<&str>) -> f64{
     let mut stack = Vec::<f64>::new();
-    let mut result = if is_numeric(delimited_input[0]) == true {delimited_input[0].parse::<f64>().unwrap_or(0.0)} else {0.0};
+    // let result = if is_numeric(delimited_input[0]) == true {delimited_input[0].parse::<f64>().unwrap_or(0.0)} else {0.0};
     for i in delimited_input {
         if is_numeric(i) == true { //オペランドの場合
             stack.push(i.parse::<f64>().unwrap_or(0.0));
         } else { //演算子の場合
             if stack.len() < 2 {
                 println!("被演算子(数)が足りない可能性があります。もう一度入力してください。\n");
-                continue;
+                continue; //のちにエラー処理
             }
-            result =  calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
+            let result = calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
             for _ in 0..2 {
                 stack.remove(stack.len() - 1);
             }
             stack.push(result); //結果の挿入
         }
     }
-    result
+    if stack.len() != 1 {
+        println!("被演算子(数)が足りない可能性があります。もう一度入力してください。\n");
+        1.1
+    } else {
+        stack[stack.len() - 1]
+    }
+    
 }
+
+// enum error_code {
+    
+// }
+
+// fn error() -> {
+
+// }
 
 fn main() {
     println!("rpn_rust: ver.1.3\n");
