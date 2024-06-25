@@ -95,7 +95,7 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
 
 fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u32>{
     let mut stack = Vec::<f64>::new();
-    if stack.len() <= 1 {
+    if delimited_input.len() < 1 {
         return Err(0104)
     };
     for i in delimited_input {
@@ -115,7 +115,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u32>{
             stack.push(result); //結果の挿入
         }
     }
-    if stack.len() != 1 {
+    if stack.len() > 1 {
         Err(0104)
     } else {
         Ok(stack[stack.len() - 1])
