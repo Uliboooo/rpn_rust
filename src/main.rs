@@ -4,13 +4,14 @@ use get_input::get_input;
 fn error(error_code_num: u32) {
     print!("{}: ", error_code_num);
     match error_code_num {
-        0101 => println!("計算不可能な文字が含まれています。"),
-        0102 => println!("式が入力されていない可能性があります。"),
-        0103 => println!("演算子の間にスペースが含まれていない可能性があります。"),
-        0201 => println!("被演算子(数)が足りない可能性があります。"),
-        _ => println!("原因不明のエラーです"),
+        0101 => eprintln!("計算不可能な文字が含まれています。"),
+        0102 => eprintln!("式が入力されていない可能性があります。"),
+        0103 => eprintln!("演算子の間にスペースが含まれていない可能性があります。"),
+        0104 => eprintln!("被演算子(数)が足りない可能性があります。"),
+        0105 => eprintln!("数値に変換できませんでした。"),
+        _ => eprintln!("原因不明のエラーです"),
     };
-    println!("");
+    println!("もう一度入力してください。\n");
 }
 
 fn check_unavailable_character(checked_string: &String) -> bool { //入力に演算不可能な文字があった場合false
@@ -65,15 +66,22 @@ fn is_numeric(input: &str) -> bool { //入力が数値ならtrue, 演算子な�
     }
 }
 
-fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> f64 { //演算
+fn to_num(input_str: &str) -> Result<f64, u32> {
+    match input_str.parse::<f64>() {
+        Ok(n) => Ok(n),
+        Err(_) => Err(0105),
+    }
+}
+
+fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, u32> { //演算
     match operator {
-        "+" => operand_1 + operand_2,
-        "-" => operand_1 - operand_2,
-        "*" => operand_1 * operand_2,
-        "/" => operand_1 / operand_2,
-        "%" => operand_1 % operand_2,
-        "**" => power(operand_1, operand_2),
-        _ => 0.0,
+        "+" => Ok(operand_1 + operand_2),
+        "-" => Ok(operand_1 - operand_2),
+        "*" => Ok(operand_1 * operand_2),
+        "/" => Ok(operand_1 / operand_2),
+        "%" => Ok(operand_1 % operand_2),
+        "**" => Ok(power(operand_1, operand_2)),
+        _ => Err(0101),
     }
 }
 
@@ -85,18 +93,22 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
     power_result
 }
 
-fn stack_manage(delimited_input: Vec<&str>) -> f64{
+fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u32>{
     let mut stack = Vec::<f64>::new();
-    // let result = if is_numeric(delimited_input[0]) == true {delimited_input[0].parse::<f64>().unwrap_or(0.0)} else {0.0};
+    if stack.len() <= 1 {
+        return Err(0104)
+    };
     for i in delimited_input {
         if is_numeric(i) == true { //オペランドの場合
-            stack.push(i.parse::<f64>().unwrap_or(0.0));
+            stack.push(match to_num(i) {
+                Ok(result) => result,
+                Err(error_code) => return Err(error_code),
+            });
         } else { //演算子の場合
-            if stack.len() < 2 {
-                error(0201); //オペランド不足
-                continue; //のちにエラー処理
-            }
-            let result = calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
+            let result = match calculation(stack[stack.len() - 2], stack[stack.len() - 1], i) {
+                Ok(result_) => result_,
+                Err(error_code) => return Err(error_code),
+            }; 
             for _ in 0..2 {
                 stack.remove(stack.len() - 1);
             }
@@ -104,25 +116,31 @@ fn stack_manage(delimited_input: Vec<&str>) -> f64{
         }
     }
     if stack.len() != 1 {
-        error(0201); //オペランド不足
-        1.1
+        Err(0104)
     } else {
-        stack[stack.len() - 1]
+        Ok(stack[stack.len() - 1])
     }
     
 }
 
 fn main() {
     loop {
-        println!("式を入力してください。\"n\"で終了\n例: 1 2 + (値や演算子同士は半角スペースで区切ってください。)");
+        println!("式を入力してください。\"n\"で終了\n例: 1 2 + (値や演算子は半角スペースで区切ってください。)\n使用可能演算子: 加(+)減(-)乗(*)除(/)余(%)指(**)");
         let input_formula = get_input();
         if &input_formula == &"n".to_string() {break;};
         if check_syntax(&input_formula) == false {continue;};
         let delimited_input_fomula = delimit(&input_formula);
-        let result = stack_manage(delimited_input_fomula);
+        let result = match stack_manage(delimited_input_fomula) {
+            Ok(result_) => result_,
+            Err(error_code) => {
+                error(error_code);
+                continue;
+            }
+        };
         println!("{}\nもう一度計算しますか?(y/n)", result);
         if get_input() == "n".to_string() {
             break;
         }
+        println!("");
     }
 }
