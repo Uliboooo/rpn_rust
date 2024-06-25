@@ -1,49 +1,53 @@
 use regex::Regex;
+use get_input::get_input;
 
-fn get_input() -> String { //String型で入力を返す
-    let mut word = String::new();
-    std::io::stdin()
-        .read_line(&mut word)
-        .expect("Failed to read line");
-    word.trim().to_string()
+fn error(error_code_num: u32) {
+    print!("{}: ", error_code_num);
+    match error_code_num {
+        0101 => println!("計算不可能な文字が含まれています。"),
+        0102 => println!("式が入力されていない可能性があります。"),
+        0103 => println!("演算子の間にスペースが含まれていない可能性があります。"),
+        0201 => println!("被演算子(数)が足りない可能性があります。"),
+        _ => println!("原因不明のエラーです"),
+    };
+    println!("");
 }
 
-fn check_halfspace(checked_string: &String) -> bool {
-    let re = Regex::new(r"\d[^\w\s]").unwrap();
-    // let re1 = Regex::new(r"\W\d").unwrap();
-    if re.is_match(&checked_string) {
-        println!("演算子の間にスペースが含まれていない可能性があります。もう一度入力してください。\n");
-        false
-    } else {
-        true
-    }
-}
-
-fn check_length(checked_string: &String) -> bool{
-    if checked_string.len() == 0 {
-        println!("式が入力されていない可能性があります。もう一度入力してください。\n");
-        false
-    } else {
-        true
-    }
-}
-
-fn check_unavailable_character(checked_string: &String) -> bool {
+fn check_unavailable_character(checked_string: &String) -> bool { //入力に演算不可能な文字があった場合false
     let re = Regex::new("[^+\\-*/%1234567890 ]").unwrap();
     if re.is_match(&checked_string) {
-        println!("計算不可能な文字が含まれています。もう1度入力してください\n");
         false
     } else {
         true
     }
 }
 
-fn check_syntax(checked_string: &String) -> bool { //入力に演算不可能な文字があった場合false
+fn check_length(checked_string: &String) -> bool{ //式が入力されていない場合
+    if checked_string.len() <= 1 {
+        false
+    } else {
+        true
+    }
+}
+
+fn check_halfspace(checked_string: &String) -> bool { //演算子の間のスペース
+    let re = Regex::new(r"\d[^\w\s]").unwrap();
+    if re.is_match(&checked_string) {
+        false
+    } else {
+        true
+    }
+}
+
+fn check_syntax(checked_string: &String) -> bool { //入力された式のチェック
     if check_unavailable_character(checked_string) == false {
+        error(0101);
         false
     } else if check_length(checked_string) == false {
+        error(0102);
         false
     } else if check_halfspace(checked_string) == false{
+        error(0103);
         false
     } else {
         true
@@ -89,7 +93,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> f64{
             stack.push(i.parse::<f64>().unwrap_or(0.0));
         } else { //演算子の場合
             if stack.len() < 2 {
-                println!("被演算子(数)が足りない可能性があります。もう一度入力してください。\n");
+                error(0201); //オペランド不足
                 continue; //のちにエラー処理
             }
             let result = calculation(stack[stack.len() - 2], stack[stack.len() - 1], i);
@@ -100,7 +104,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> f64{
         }
     }
     if stack.len() != 1 {
-        println!("被演算子(数)が足りない可能性があります。もう一度入力してください。\n");
+        error(0201); //オペランド不足
         1.1
     } else {
         stack[stack.len() - 1]
@@ -108,20 +112,12 @@ fn stack_manage(delimited_input: Vec<&str>) -> f64{
     
 }
 
-// enum error_code {
-    
-// }
-
-// fn error() -> {
-
-// }
-
 fn main() {
-    println!("rpn_rust: ver.1.3\n");
     loop {
-        println!("式を入力してください。\n例: 1 + 2 → 1 2 +\n値や演算子同士は半角スペースで区切ってください。");
+        println!("式を入力してください。\"n\"で終了\n例: 1 2 + (値や演算子同士は半角スペースで区切ってください。)");
         let input_formula = get_input();
-        if check_syntax(&input_formula) == false {continue;}
+        if &input_formula == &"n".to_string() {break;};
+        if check_syntax(&input_formula) == false {continue;};
         let delimited_input_fomula = delimit(&input_formula);
         let result = stack_manage(delimited_input_fomula);
         println!("{}\nもう一度計算しますか?(y/n)", result);

@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 regex = "1.10.4"
+get_input = { git = "https://github.com/ulibo-yuki/get_input"}
