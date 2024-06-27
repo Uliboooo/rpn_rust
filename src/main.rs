@@ -1,8 +1,8 @@
 use regex::Regex;
 use get_input::get_input;
 
-fn error(error_code_num: u32) {
-    print!("{}: ", error_code_num);
+fn show_error(error_code_num: u32) {
+    eprint!("{}: ", error_code_num);
     match error_code_num {
         0101 => eprintln!("計算不可能な文字が含まれています。"),
         0102 => eprintln!("式が入力されていない可能性があります。"),
@@ -42,13 +42,13 @@ fn check_halfspace(checked_string: &String) -> bool { //演算子の間のスペ
 
 fn check_syntax(checked_string: &String) -> bool { //入力された式のチェック
     if check_unavailable_character(checked_string) == false {
-        error(0101);
+        show_error(0101);
         false
     } else if check_length(checked_string) == false {
-        error(0102);
+        show_error(0102);
         false
     } else if check_halfspace(checked_string) == false{
-        error(0103);
+        show_error(0103);
         false
     } else {
         true
@@ -95,9 +95,6 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
 
 fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u32>{
     let mut stack = Vec::<f64>::new();
-    if delimited_input.len() < 1 {
-        return Err(0104)
-    };
     for i in delimited_input {
         if is_numeric(i) == true { //オペランドの場合
             stack.push(match to_num(i) {
@@ -110,7 +107,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u32>{
                 Err(error_code) => return Err(error_code),
             }; 
             for _ in 0..2 {
-                stack.remove(stack.len() - 1);
+                stack.remove(stack.len() - 1); //stackのクリア
             }
             stack.push(result); //結果の挿入
         }
@@ -133,7 +130,7 @@ fn main() {
         let result = match stack_manage(delimited_input_fomula) {
             Ok(result_) => result_,
             Err(error_code) => {
-                error(error_code);
+                show_error(error_code);
                 continue;
             }
         };
