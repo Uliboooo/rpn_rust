@@ -9,6 +9,7 @@ fn show_error(error_code_num: u32) {
         0103 => eprintln!("演算子の間にスペースが含まれていない可能性があります。"),
         0104 => eprintln!("被演算子(数)が足りない可能性があります。"),
         0105 => eprintln!("数値に変換できませんでした。"),
+        0201 => eprintln!("未定義の演算子が入力されました。"),
         _ => eprintln!("原因不明のエラーです"),
     };
     println!("もう一度入力してください。\n");
@@ -81,7 +82,7 @@ fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, u3
         "/" => Ok(operand_1 / operand_2),
         "%" => Ok(operand_1 % operand_2),
         "**" => Ok(power(operand_1, operand_2)),
-        _ => Err(0101),
+        _ => Err(0201),
     }
 }
 
@@ -102,6 +103,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u32>{
                 Err(error_code) => return Err(error_code),
             });
         } else { //演算子の場合
+            if stack.len() < 2 {return Err(0104)}; //引数不足
             let result = match calculation(stack[stack.len() - 2], stack[stack.len() - 1], i) {
                 Ok(result_) => result_,
                 Err(error_code) => return Err(error_code),
@@ -117,7 +119,6 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u32>{
     } else {
         Ok(stack[stack.len() - 1])
     }
-    
 }
 
 fn main() {
