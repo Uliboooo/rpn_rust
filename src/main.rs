@@ -1,23 +1,28 @@
 use regex::Regex;
 use get_input::get_input;
+use colored::Colorize;
 
 fn show_error(error_code_num: u16) {
-    eprint!("{}: ", error_code_num);
-    match error_code_num {
-        0101 => eprintln!("計算不可能な文字が含まれています。"),
-        0102 => eprintln!("式が入力されていない可能性があります。"),
-        0103 => eprintln!("演算子の間にスペースが含まれていない可能性があります。"),
-        0104 => eprintln!("被演算子(数)が足りない可能性があります。"),
-        0105 => eprintln!("数値に変換できませんでした。"),
-        0106 => eprintln!("演算子が入力されていない可能性があります。"),
-        0201 => eprintln!("未定義の演算子が入力されました。"),
-        _ => eprintln!("原因不明のエラーです"),
-    };
+    eprintln!(
+        "{}{} {}",
+        error_code_num.to_string().red(),
+        ":".red(),
+        match error_code_num {
+            0101 => "計算不可能な文字が含まれています。",
+            0102 => "式が入力されていない可能性があります。",
+            0103 => "演算子の間にスペースが含まれていない可能性があります。",
+            0104 => "被演算子(数が足りない可能性があります。",
+            0105 => "数値に変換できませんでした。",
+            0106 => "演算子が入力されていない可能性があります。",
+            0201 => "未定義の演算子が入力されました。",
+            _ => "原因不明のエラーです",
+        }.to_string().red(),
+    );
     println!("もう一度入力してください。\n");
 }
 
 fn check_unavailable_character(checked_string: &String) -> bool { //入力に演算不可能な文字があった場合false
-    let re: Regex = Regex::new("[^+\\-*/%1234567890 ]").unwrap();
+    let re = Regex::new("[^+\\-*/%1234567890 ]").unwrap();
     if re.is_match(&checked_string) {
         false
     } else {
