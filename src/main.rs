@@ -116,10 +116,12 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u16>{
     let mut stack = Vec::<f64>::new();
     for i in delimited_input {
         if is_numeric(i) == true { //オペランドの場合
-            stack.push(match to_num(i) {
-                Ok(result) => result,
-                Err(error_code) => return Err(error_code),
-            });
+            stack.push(
+                match to_num(i) {
+                    Ok(result) => result,
+                    Err(error_code) => return Err(error_code),
+                }
+            );
         } else { //演算子の場合
             if stack.len() < 2 {return Err(0104)}; //引数不足
             let result = match calculation(stack[stack.len() - 2], stack[stack.len() - 1], i) {
