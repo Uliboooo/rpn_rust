@@ -1,6 +1,7 @@
 use regex::Regex;
 use get_input::get_input;
 use colored::Colorize;
+use std::env;
 use std::fs::OpenOptions;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -11,33 +12,52 @@ use chrono::Local;
 
 struct History { //日付、成否、入力された式、結果もしくはエラーコード
     date: String,
-    is_success: bool,
+    status: (u8, u8),
     forumula: String,
-    solution: f64,
+    solution: Result<f64, String>,
 }
 
 struct SolutionResult {
-    solution: f64,
-    success: bool,
+    solution: Result<f64, String>,
+    status: (u8, u8),
 }
 
-fn show_error(error_code_num: u16) { //エラーコードから適切なエラーを表示
+fn join_error_code(u8_code: (u8, u8)) -> u16{
+    u8_code.0 as u16 * 100 + u8_code.1 as u16
+}
+
+fn show_error(error_code_num: (u8, u8)) { //エラーコードから適切なエラーを表示
+    // let error_code_u16 = join_error_code(error_code_num);
+    let error_code_string = format!("{}{}", error_code_num.0.to_string(), error_code_num.1.to_string());
     eprintln!(
         "{}{} {}",
-        error_code_num.to_string().red(),
+        error_code_string.red(),
         ":".red(),
-        match error_code_num {
-            0101 => "計算不可能な文字が含まれています。",
-            0102 => "式が入力されていない可能性があります。",
-            0103 => "演算子の間にスペースが含まれていない可能性があります。",
-            0104 => "被演算子(数)が足りない可能性があります。",
-            0105 => "数値に変換できませんでした。",
-            0106 => "演算子が入力されていない可能性があります。",
-            0201 => "未定義の演算子が入力されました。",
+        match error_code_num.0 {
+            01 => match error_code_num.1 {
+                01 => "計算不可能な文字が含まれています。",
+                02 => "式が入力されていない可能性があります。",
+                03 => "演算子の間にスペースが含まれていない可能性があります。",
+                04 => "被演算子(数)が足りない可能性があります。",
+                05 => "数値に変換できませんでした。",
+                06 => "演算子が入力されていない可能性があります。",
+                _ => "原因不明のエラーです。"
+            },
+            02 => match error_code_num.1 {
+                01 => "未定義の演算子が入力されました。",
+                _ => "原因不明のエラーです。",
+            }
             _ => "原因不明のエラーです。",
-        }.to_string().red(),
+        }.to_string().red()
     );
     println!("もう一度入力してください。\n");
+}
+
+fn status_code_manage(result_status: (u8, u8)) {
+    match result_status.0 {
+        00 => return,
+        _ => show_error(result_status),
+    }
 }
 
 fn check_unavailable_character(checked_string: &String) -> bool { //入力に演算不可能な文字があった場合false
@@ -75,15 +95,15 @@ fn check_halfspace(checked_string: &String) -> bool { //演算子の間のスペ
     }
 }
 
-fn check_syntax(checked_string: &String) -> Result<bool, u16> { //入力された式のチェック
+fn check_syntax(checked_string: &String) -> Result<bool, (u8, u8)> { //入力された式のチェック
     if check_unavailable_character(checked_string) == false {
-        Err(0101)
+        Err((01,01))
     } else if check_length(checked_string) == false {
-        Err(0102)
+        Err((01, 02))
     } else if check_halfspace(checked_string) == false {
-        Err(0103)
+        Err((01, 03))
     } else if check_is_operator(checked_string) == false {
-        Err(0106)
+        Err((01, 06))
     } else {
         Ok(true)
     }
@@ -100,14 +120,14 @@ fn is_numeric(input: &str) -> bool { //入力が数値ならtrue, 演算子な�
     }
 }
 
-fn to_num(input_str: &str) -> Result<f64, u16> { //&strを数値に変換
+fn to_num(input_str: &str) -> Result<f64, (u8, u8)> { //&strを数値に変換
     match input_str.parse::<f64>() {
         Ok(n) => Ok(n),
-        Err(_) => Err(0105),
+        Err(_) => Err((01,05)),
     }
 }
 
-fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, u16> { //演算
+fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, (u8, u8)> { //演算
     Ok(
         match operator {
         "+" => operand_1 + operand_2,
@@ -116,7 +136,7 @@ fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, u1
         "/" => operand_1 / operand_2,
         "%" => operand_1 % operand_2,
         "**" => power(operand_1, operand_2),
-        _ => return Err(0201),
+        _ => return Err((02, 01)),
         }
     )
 }
@@ -129,7 +149,7 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
     power_result
 }
 
-fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u16>{ //stackの制御
+fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, (u8, u8)>{ //stackの制御
     let mut stack = Vec::<f64>::new();
     for i in delimited_input {
         if is_numeric(i) == true { //オペランドの場合
@@ -140,7 +160,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u16>{ //stackの制�
                 }
             );
         } else { //演算子の場合
-            if stack.len() < 2 {return Err(0104)}; //引数不足
+            if stack.len() < 2 {return Err((01, 04))}; //引数不足
             let result = match calculation(stack[stack.len() - 2], stack[stack.len() - 1], i) {
                 Ok(result_) => result_,
                 Err(error_code) => return Err(error_code),
@@ -152,30 +172,40 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u16>{ //stackの制�
         }
     }
     if stack.len() > 1 {
-        Err(0104)
+        return Err((01, 04))
     } else {
-        Ok(stack[stack.len() - 1])
+        return Ok(stack[stack.len() - 1])
     }
 }
 
-fn bool_to_string(is_success: bool) -> String { //trueなら"成功"、falseなら"失敗"を返す
-    if is_success == true {"成功".to_string()} else {"失敗".to_string()}
+fn status_code_to_boolstring(status_code: (u8, u8)) -> String {
+    match status_code.0 {
+        00 => "成功".to_string(),
+        _ => "失敗".to_string(),
+    }
+}
+
+fn u8_code_to_string(code: (u8, u8)) -> String {
+    join_error_code(code).to_string()
 }
 
 fn history_to_string(content: History) -> String { //書き込み可能なStringに変換
-    let mut log_content = content.date.to_string();
-    log_content.push_str(",");
-    log_content.push_str(bool_to_string(content.is_success).as_str());
-    log_content.push_str(",");
-    log_content.push_str(content.forumula.as_str());
-    log_content.push_str(",");
-    log_content.push_str(content.solution.to_string().as_str());
-    log_content.push_str("\n");
+    let log_content = format!(
+            "{},{},{},{},{}\n",
+            content.date.to_string(),
+            status_code_to_boolstring(content.status),
+            content.forumula, 
+            match content.solution{
+                Ok(solution) => solution.to_string(),
+                Err(error_msg) => error_msg,
+            }, 
+            u8_code_to_string(content.status)
+        );
     log_content
 }
 
 fn add_data_csv(path: &Path, content: History) { //データをcsvに追加
-    let file = match OpenOptions::new().write(true).append(true).open(path){
+    let file = match OpenOptions::new().write(true).append(true).open(path) {
         Ok(file) => file,
         Err(_) => return,
     };
@@ -185,7 +215,8 @@ fn add_data_csv(path: &Path, content: History) { //データをcsvに追加
             match bw.flush(){
                 Ok(_) => {},
                 Err(_) => return,
-            } },
+            }
+        },
         Err(_) => return,
     }
 }
@@ -193,14 +224,11 @@ fn add_data_csv(path: &Path, content: History) { //データをcsvに追加
 fn add_column_csv(path: &Path) -> Result<(), std::io::Error> { //カラムを追加
     let file = OpenOptions::new().create(true).read(true).write(true).open(path)?;
     let reader = BufReader::new(file);
-    let column = "日付,成否,入力された式,結果(成否が失敗の場合はエラーコード)";
+    let column = "日付,成否,入力された式,結果,ステータスコード";
     let mut lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
     if lines.is_empty() || lines[0] != column {
         lines.insert(0, column.to_string());
-        let mut file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(path)?;
+        let mut file = OpenOptions::new().write(true).truncate(true).open(path)?;
         for line in lines {
             writeln!(file, "{}", line)?;
         }
@@ -209,7 +237,7 @@ fn add_column_csv(path: &Path) -> Result<(), std::io::Error> { //カラムを追
 }
 
 fn log_history(log_content: History) {
-    let path = Path::new("history.csv");
+    let path = Path::new("./history.csv");
     match add_column_csv(path) {
         Ok(_) => {()},
         Err(_) => return,
@@ -218,46 +246,52 @@ fn log_history(log_content: History) {
 }
 
 fn main() {
+    let exe_path = env::current_exe().expect("Failed to get current path");
+    let exe_dir = exe_path.parent().expect("Failed to get parent path");
+    env::set_current_dir(exe_dir).expect("Failed to set dir");
     loop {
         println!("式を入力してください。\"n\"で終了\n例: 1 2 + 3 4 + +(値や演算子は半角スペースで区切ってください。)\n使用可能演算子: 加(+)減(-)乗(*)除(/)余(%)指(**)");
         let input_formula = get_input();
         if &input_formula == &"n".to_string() {break;};
         let result = match check_syntax(&input_formula) {
-            Ok(_) => {
+            Ok(_) => { //check_syntaxが通った
                 let delimited_input_fomula = delimit(&input_formula);
                 match stack_manage(delimited_input_fomula) {
                     Ok(result) => {
                         SolutionResult {
-                            solution: result,
-                            success: true
+                            solution: Ok(result),
+                            status: (00, 01),
                         }
                     },
                     Err(error_code) => {
-                        show_error(error_code);
                         SolutionResult {
-                            solution: error_code as f64,
-                            success: false,
+                            solution: Err("error".to_string()),
+                            status: (error_code),
                         }
                     },
                 }
             },
-            Err(error_code) => {
-                show_error(error_code);
+            Err(error_code) => { //check_syntaxが通らなかった場合
                 SolutionResult {
-                    solution: error_code as f64,
-                    success: false,
+                    solution: Err("error".to_string()),
+                    status: (error_code)
                 }
             },
         };
-        if result.success == true {
-            println!("{}\n", result.solution);
-        }
+        status_code_manage(result.status);
+        match result.solution { //結果がある場合のみ表示
+            Ok(solution) => println!("{}", solution),
+            Err(_) => {},
+        };
         log_history(
             History {
                 date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-                is_success: result.success,
+                status: result.status,
                 forumula: input_formula.clone(),
-                solution: result.solution
+                solution: match result.solution {
+                    Ok(result) => Ok(result),
+                    Err(errror_msg) => Err(errror_msg),
+                }
             }
         );
     }
