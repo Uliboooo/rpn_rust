@@ -174,7 +174,7 @@ fn history_to_string(content: History) -> String { //書き込み可能なString
     log_content
 }
 
-fn add_data_csv(path: &Path, content: History) {
+fn add_data_csv(path: &Path, content: History) { //データをcsvに追加
     let file = match OpenOptions::new().write(true).append(true).open(path){
         Ok(file) => file,
         Err(_) => return,
@@ -190,7 +190,7 @@ fn add_data_csv(path: &Path, content: History) {
     }
 }
 
-fn add_column_csv(path: &Path) -> Result<(), std::io::Error> {
+fn add_column_csv(path: &Path) -> Result<(), std::io::Error> { //カラムを追加
     let file = OpenOptions::new().create(true).read(true).write(true).open(path)?;
     let reader = BufReader::new(file);
     let column = "日付,成否,入力された式,結果(成否が失敗の場合はエラーコード)";
