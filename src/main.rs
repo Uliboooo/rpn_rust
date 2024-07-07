@@ -164,6 +164,7 @@ fn bool_to_string(is_success: bool) -> String { //trueなら"成功"、falseな�
 
 fn history_to_string(content: History) -> String { //書き込み可能なStringに変換
     let mut log_content = content.date.to_string();
+    log_content.push_str(",");
     log_content.push_str(bool_to_string(content.is_success).as_str());
     log_content.push_str(",");
     log_content.push_str(content.forumula.as_str());
