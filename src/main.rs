@@ -30,11 +30,11 @@ fn show_error(error_code_num: u16) { //エラーコードから適切なエラ�
             0101 => "計算不可能な文字が含まれています。",
             0102 => "式が入力されていない可能性があります。",
             0103 => "演算子の間にスペースが含まれていない可能性があります。",
-            0104 => "被演算子(数)が足りない可能性があります。",
+            0104 => "被演算子(数が足りない可能性があります。",
             0105 => "数値に変換できませんでした。",
             0106 => "演算子が入力されていない可能性があります。",
             0201 => "未定義の演算子が入力されました。",
-            _ => "原因不明のエラーです。",
+            _ => "原因不明のエラーです",
         }.to_string().red(),
     );
     println!("もう一度入力してください。\n");
@@ -75,17 +75,21 @@ fn check_halfspace(checked_string: &String) -> bool { //演算子の間のスペ
     }
 }
 
-fn check_syntax(checked_string: &String) -> Result<bool, u16> { //入力された式のチェック
+fn check_syntax(checked_string: &String) -> bool { //入力された式のチェック
     if check_unavailable_character(checked_string) == false {
-        Err(0101)
+        show_error(0101);
+        false
     } else if check_length(checked_string) == false {
-        Err(0102)
+        show_error(0102);
+        false
     } else if check_halfspace(checked_string) == false {
-        Err(0103)
+        show_error(0103);
+        false
     } else if check_is_operator(checked_string) == false {
-        Err(0106)
+        show_error(0106);
+        false
     } else {
-        Ok(true)
+        true
     }
 }
 
@@ -100,7 +104,7 @@ fn is_numeric(input: &str) -> bool { //入力が数値ならtrue, 演算子な�
     }
 }
 
-fn to_num(input_str: &str) -> Result<f64, u16> { //&strを数値に変換
+fn to_num(input_str: &str) -> Result<f64, u16> {
     match input_str.parse::<f64>() {
         Ok(n) => Ok(n),
         Err(_) => Err(0105),
@@ -129,7 +133,7 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
     power_result
 }
 
-fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u16>{ //stackの制御
+fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u16>{
     let mut stack = Vec::<f64>::new();
     for i in delimited_input {
         if is_numeric(i) == true { //オペランドの場合
@@ -215,10 +219,9 @@ fn log_history(log_content: History) {
     };
     add_data_csv(path, log_content);
 }
-
 fn main() {
     loop {
-        println!("式を入力してください。\"n\"で終了\n例: 1 2 + 3 4 + +(値や演算子は半角スペースで区切ってください。)\n使用可能演算子: 加(+)減(-)乗(*)除(/)余(%)指(**)");
+        println!("式を入力してください。\"n\"で終了\n例: 1 2 + (値や演算子は半角スペースで区切ってください。)\n使用可能演算子: 加(+)減(-)乗(*)除(/)余(%)指(**)");
         let input_formula = get_input();
         if &input_formula == &"n".to_string() {break;};
         let result = match check_syntax(&input_formula) {

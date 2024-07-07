@@ -7,4 +7,3 @@ edition = "2021"
 regex = "1.10.5"
 get_input = { git = "https://github.com/ulibo-yuki/get_input"}
 colored = "2.1.0"
-chrono = "0.4.38"
