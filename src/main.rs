@@ -1,27 +1,8 @@
 use regex::Regex;
 use get_input::get_input;
 use colored::Colorize;
-use std::fs::OpenOptions;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::BufWriter;
-use std::io::Write;
-use std::path::Path;
-use chrono::Local;
 
-struct History { //日付、成否、入力された式、結果もしくはエラーコード
-    date: String,
-    is_success: bool,
-    forumula: String,
-    solution: f64,
-}
-
-struct SolutionResult {
-    solution: f64,
-    success: bool,
-}
-
-fn show_error(error_code_num: u16) { //エラーコードから適切なエラーを表示
+fn show_error(error_code_num: u16) {
     eprintln!(
         "{}{} {}",
         error_code_num.to_string().red(),
@@ -112,17 +93,15 @@ fn to_num(input_str: &str) -> Result<f64, u16> {
 }
 
 fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, u16> { //演算
-    Ok(
-        match operator {
-        "+" => operand_1 + operand_2,
-        "-" => operand_1 - operand_2,
-        "*" => operand_1 * operand_2,
-        "/" => operand_1 / operand_2,
-        "%" => operand_1 % operand_2,
-        "**" => power(operand_1, operand_2),
-        _ => return Err(0201),
-        }
-    )
+    match operator {
+        "+" => Ok(operand_1 + operand_2),
+        "-" => Ok(operand_1 - operand_2),
+        "*" => Ok(operand_1 * operand_2),
+        "/" => Ok(operand_1 / operand_2),
+        "%" => Ok(operand_1 % operand_2),
+        "**" => Ok(power(operand_1, operand_2)),
+        _ => Err(0201),
+    }
 }
 
 fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
@@ -162,105 +141,24 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, u16>{
     }
 }
 
-fn bool_to_string(is_success: bool) -> String { //trueなら"成功"、falseなら"失敗"を返す
-    if is_success == true {"成功".to_string()} else {"失敗".to_string()}
-}
-
-fn history_to_string(content: History) -> String { //書き込み可能なStringに変換
-    let mut log_content = content.date.to_string();
-    log_content.push_str(bool_to_string(content.is_success).as_str());
-    log_content.push_str(",");
-    log_content.push_str(content.forumula.as_str());
-    log_content.push_str(",");
-    log_content.push_str(content.solution.to_string().as_str());
-    log_content.push_str("\n");
-    log_content
-}
-
-fn add_data_csv(path: &Path, content: History) {
-    let file = match OpenOptions::new().write(true).append(true).open(path){
-        Ok(file) => file,
-        Err(_) => return,
-    };
-    let mut bw = BufWriter::new(file);
-    match bw.write(history_to_string(content).as_bytes()) {
-        Ok(_) => {
-            match bw.flush(){
-                Ok(_) => {},
-                Err(_) => return,
-            } },
-        Err(_) => return,
-    }
-}
-
-fn add_column_csv(path: &Path) -> Result<(), std::io::Error> {
-    let file = OpenOptions::new().create(true).read(true).write(true).open(path)?;
-    let reader = BufReader::new(file);
-    let column = "日付,成否,入力された式,結果(成否が失敗の場合はエラーコード)";
-    let mut lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
-    if lines.is_empty() || lines[0] != column {
-        lines.insert(0, column.to_string());
-        let mut file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(path)?;
-        for line in lines {
-            writeln!(file, "{}", line)?;
-        }
-    }
-    Ok(())
-}
-
-fn log_history(log_content: History) {
-    let path = Path::new("history.csv");
-    match add_column_csv(path) {
-        Ok(_) => {()},
-        Err(_) => return,
-    };
-    add_data_csv(path, log_content);
-}
 fn main() {
     loop {
         println!("式を入力してください。\"n\"で終了\n例: 1 2 + (値や演算子は半角スペースで区切ってください。)\n使用可能演算子: 加(+)減(-)乗(*)除(/)余(%)指(**)");
         let input_formula = get_input();
         if &input_formula == &"n".to_string() {break;};
-        let result = match check_syntax(&input_formula) {
-            Ok(_) => {
-                let delimited_input_fomula = delimit(&input_formula);
-                match stack_manage(delimited_input_fomula) {
-                    Ok(result) => {
-                        SolutionResult {
-                            solution: result,
-                            success: true
-                        }
-                    },
-                    Err(error_code) => {
-                        show_error(error_code);
-                        SolutionResult {
-                            solution: error_code as f64,
-                            success: false,
-                        }
-                    },
-                }
-            },
+        if check_syntax(&input_formula) == false {continue;};
+        let delimited_input_fomula = delimit(&input_formula);
+        let result = match stack_manage(delimited_input_fomula) {
+            Ok(result_) => result_,
             Err(error_code) => {
                 show_error(error_code);
-                SolutionResult {
-                    solution: error_code as f64,
-                    success: false,
-                }
-            },
-        };
-        if result.success == true {
-            println!("{}\n", result.solution);
-        }
-        log_history(
-            History {
-                date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-                is_success: result.success,
-                forumula: input_formula.clone(),
-                solution: result.solution
+                continue;
             }
-        );
+        };
+        println!("{}\nもう一度計算しますか?(y/n)", result);
+        if get_input() == "n".to_string() {
+            break;
+        }
+        println!("");
     }
 }
