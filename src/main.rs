@@ -27,11 +27,9 @@ fn join_error_code(u8_code: (u8, u8)) -> u16{
 }
 
 fn show_error(error_code_num: (u8, u8)) { //エラーコードから適切なエラーを表示
-    // let error_code_u16 = join_error_code(error_code_num);
-    let error_code_string = format!("{}{}", error_code_num.0.to_string(), error_code_num.1.to_string());
     eprintln!(
         "{}{} {}",
-        error_code_string.red(),
+        join_error_code(error_code_num).to_string().red(),
         ":".red(),
         match error_code_num.0 {
             01 => match error_code_num.1 {
@@ -45,6 +43,7 @@ fn show_error(error_code_num: (u8, u8)) { //エラーコードから適切なエ
             },
             02 => match error_code_num.1 {
                 01 => "未定義の演算子が入力されました。",
+                02 => "計算結果が大きすぎます。",
                 _ => "原因不明のエラーです。",
             }
             _ => "原因不明のエラーです。",
@@ -149,6 +148,13 @@ fn power(operand_1: f64, operand_2: f64) -> f64 { //指数演算
     power_result
 }
 
+fn accuracy_infinite(result_f64: f64) -> Result<(), (u8, u8)>{
+    match result_f64.is_infinite() {
+        true => Err((02, 02)),
+        false => Ok(()),
+    }
+}
+
 fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, (u8, u8)>{ //stackの制御
     let mut stack = Vec::<f64>::new();
     for i in delimited_input {
@@ -170,6 +176,10 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, (u8, u8)>{ //stackの
             }
             stack.push(result); //結果の挿入
         }
+    }
+    match accuracy_infinite(stack[stack.len() -1]) {
+        Ok(_) => {},
+        Err(error_code) => return Err(error_code)
     }
     if stack.len() > 1 {
         return Err((01, 04))
