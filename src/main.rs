@@ -13,7 +13,7 @@ use chrono::Local;
 struct History { //日付、成否、入力された式、結果もしくはエラーコード
     date: String,
     status: (u8, u8),
-    forumula: String,
+    formula: String,
     solution: Result<f64, String>,
 }
 
@@ -204,7 +204,7 @@ fn history_to_string(content: History) -> String { //書き込み可能なString
             "{},{},{},{},{}\n",
             content.date.to_string(),
             status_code_to_boolstring(content.status),
-            content.forumula, 
+            content.formula, 
             match content.solution{
                 Ok(solution) => solution.to_string(),
                 Err(error_msg) => error_msg,
@@ -297,7 +297,7 @@ fn main() {
             History {
                 date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                 status: result.status,
-                forumula: input_formula.clone(),
+                formula: input_formula.clone(),
                 solution: match result.solution {
                     Ok(result) => Ok(result),
                     Err(errror_msg) => Err(errror_msg),
