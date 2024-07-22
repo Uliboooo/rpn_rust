@@ -9,6 +9,10 @@ use std::io::BufReader;
 use std::io::BufWriter;
 use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
+use std::sync::OnceLock;
+
+static CURRENT_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 enum StatusCode {
     Ok,
@@ -268,7 +272,10 @@ fn add_column_csv(path: &Path) -> Result<(), std::io::Error> {
 }
 
 fn log_history(log_content: History) {
-    let path = Path::new("./history.csv");
+    let path = &CURRENT_DIR
+        .get()
+        .expect("failed get dir")
+        .join("./history.csv");
     match add_column_csv(path) {
         Ok(_) => (),
         Err(_) => return,
@@ -277,9 +284,13 @@ fn log_history(log_content: History) {
 }
 
 fn main() {
-    let exe_path = env::current_exe().expect("Failed to get current path");
-    let exe_dir = exe_path.parent().expect("Failed to get parent path");
-    env::set_current_dir(exe_dir).expect("Failed to set dir");
+    let path = env::current_exe().expect("Failed get path");
+    let dir = path.parent().expect("Failed get dir").to_path_buf();
+    match CURRENT_DIR.set(dir.clone()) {
+        Ok(_) => {}
+        Err(_) => {}
+    };
+    println!("{:?}", CURRENT_DIR.get());
     loop {
         println!("式を入力してください。\"n\"で終了\n例: 1 2 + 3 4 + +(値や演算子は半角スペースで区切ってください。)\n使用可能演算子: 加(+)減(-)乗(*)除(/)余(%)指(**)");
         let input_formula = get_input();
