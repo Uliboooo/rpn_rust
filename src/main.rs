@@ -38,9 +38,11 @@ impl StatusCode {
                 StatusCode::UndefinedOperator => "未定義の演算子が使用されました。",
                 StatusCode::ResultTooMuch => "計算結果が大きすぎます。",
                 // StatusCode::UnknownError => "原因不明のエラーです。",
-            }.to_string(),
+            }
+            .to_string(),
             // "もう一度計算してください。",
-        ).to_string()
+        )
+        .to_string()
     }
 }
 
@@ -58,7 +60,10 @@ struct SolutionResult {
 }
 
 fn show_error(error_code_num: &StatusCode) {
-    eprintln!("{}\nもう一度入力してください", error_code_num.to_string().red());
+    eprintln!(
+        "{}\nもう一度入力してください",
+        error_code_num.to_string().red()
+    );
 }
 
 fn status_code_manage(result_status: &StatusCode) {
@@ -313,7 +318,7 @@ fn main() {
         match result.solution {
             //結果がある場合のみ表示
             Ok(solution) => println!("{}\n", solution),
-            Err(_) => println!("")
+            Err(_) => println!(""),
         };
         log_history(History {
             date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
