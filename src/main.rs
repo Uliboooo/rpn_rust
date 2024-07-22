@@ -10,56 +10,61 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::path::Path;
 
+enum StatusCode {
+    Ok,
+    IncludeNonComptableCharacter,
+    FormulaNotEntered,
+    NoSpaceBetweenOperators,
+    ImsufficientOperand,
+    CannotConvertToNum,
+    OperatorNotEntered,
+    UndefinedOperator,
+    ResultTooMuch,
+    // UnknownError,
+}
+
+impl StatusCode {
+    fn to_string(&self) -> String {
+        format!(
+            "{}",
+            match self {
+                StatusCode::Ok => "",
+                StatusCode::IncludeNonComptableCharacter => "計算不可能な文字が含まれています。",
+                StatusCode::FormulaNotEntered => "式が入力されていません。",
+                StatusCode::NoSpaceBetweenOperators => "演算子間にスペースが含まれていません。",
+                StatusCode::ImsufficientOperand => "非演算子(数)が足りない可能性があります。",
+                StatusCode::CannotConvertToNum => "数値に変換できませんでした。",
+                StatusCode::OperatorNotEntered => "演算子が入力されいない可能性があります。",
+                StatusCode::UndefinedOperator => "未定義の演算子が使用されました。",
+                StatusCode::ResultTooMuch => "計算結果が大きすぎます。",
+                // StatusCode::UnknownError => "原因不明のエラーです。",
+            }.to_string(),
+            // "もう一度計算してください。",
+        ).to_string()
+    }
+}
+
 struct History {
     //日付、成否、入力された式、結果もしくはエラーコード
     date: String,
-    status: (u8, u8),
+    status: StatusCode,
     formula: String,
     solution: Result<f64, String>,
 }
 
 struct SolutionResult {
     solution: Result<f64, String>,
-    status: (u8, u8),
+    status_code: StatusCode,
 }
 
-fn join_error_code(u8_code: (u8, u8)) -> u16 {
-    u8_code.0 as u16 * 100 + u8_code.1 as u16
+fn show_error(error_code_num: &StatusCode) {
+    eprintln!("{}\nもう一度入力してください", error_code_num.to_string().red());
 }
 
-fn show_error(error_code_num: (u8, u8)) {
-    //エラーコードから適切なエラーを表示
-    eprintln!(
-        "{}{} {}",
-        join_error_code(error_code_num).to_string().red(),
-        ":".red(),
-        match error_code_num.0 {
-            01 => match error_code_num.1 {
-                01 => "計算不可能な文字が含まれています。",
-                02 => "式が入力されていない可能性があります。",
-                03 => "演算子の間にスペースが含まれていない可能性があります。",
-                04 => "被演算子(数)が足りない可能性があります。",
-                05 => "数値に変換できませんでした。",
-                06 => "演算子が入力されていない可能性があります。",
-                _ => "原因不明のエラーです。",
-            },
-            02 => match error_code_num.1 {
-                01 => "未定義の演算子が入力されました。",
-                02 => "計算結果が大きすぎます。",
-                _ => "原因不明のエラーです。",
-            },
-            _ => "原因不明のエラーです。",
-        }
-        .to_string()
-        .red()
-    );
-    println!("もう一度入力してください。\n");
-}
-
-fn status_code_manage(result_status: (u8, u8)) {
-    match result_status.0 {
-        00 => return,
-        _ => show_error(result_status),
+fn status_code_manage(result_status: &StatusCode) {
+    match result_status {
+        StatusCode::Ok => return,
+        _ => show_error(&result_status),
     }
 }
 
@@ -102,16 +107,16 @@ fn check_halfspace(checked_string: &String) -> bool {
     }
 }
 
-fn check_syntax(checked_string: &String) -> Result<bool, (u8, u8)> {
+fn check_syntax(checked_string: &String) -> Result<bool, StatusCode> {
     //入力された式のチェック
     if check_unavailable_character(checked_string) == false {
-        Err((01, 01))
+        Err(StatusCode::IncludeNonComptableCharacter)
     } else if check_length(checked_string) == false {
-        Err((01, 02))
+        Err(StatusCode::FormulaNotEntered)
     } else if check_halfspace(checked_string) == false {
-        Err((01, 03))
+        Err(StatusCode::NoSpaceBetweenOperators)
     } else if check_is_operator(checked_string) == false {
-        Err((01, 06))
+        Err(StatusCode::OperatorNotEntered)
     } else {
         Ok(true)
     }
@@ -130,15 +135,15 @@ fn is_numeric(input: &str) -> bool {
     }
 }
 
-fn to_num(input_str: &str) -> Result<f64, (u8, u8)> {
+fn to_num(input_str: &str) -> Result<f64, StatusCode> {
     //&strを数値に変換
     match input_str.parse::<f64>() {
         Ok(n) => Ok(n),
-        Err(_) => Err((01, 05)),
+        Err(_) => Err(StatusCode::CannotConvertToNum),
     }
 }
 
-fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, (u8, u8)> {
+fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, StatusCode> {
     //演算
     Ok(match operator {
         "+" => operand_1 + operand_2,
@@ -147,7 +152,7 @@ fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, (u
         "/" => operand_1 / operand_2,
         "%" => operand_1 % operand_2,
         "**" => power(operand_1, operand_2),
-        _ => return Err((02, 01)),
+        _ => return Err(StatusCode::UndefinedOperator),
     })
 }
 
@@ -160,14 +165,14 @@ fn power(operand_1: f64, operand_2: f64) -> f64 {
     power_result
 }
 
-fn accuracy_infinite(result_f64: f64) -> Result<(), (u8, u8)> {
+fn accuracy_infinite(result_f64: f64) -> Result<(), StatusCode> {
     match result_f64.is_infinite() {
-        true => Err((02, 02)),
+        true => Err(StatusCode::ResultTooMuch),
         false => Ok(()),
     }
 }
 
-fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, (u8, u8)> {
+fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, StatusCode> {
     //stackの制御
     let mut stack = Vec::<f64>::new();
     for i in delimited_input {
@@ -180,7 +185,7 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, (u8, u8)> {
         } else {
             //演算子の場合
             if stack.len() < 2 {
-                return Err((01, 04));
+                return Err(StatusCode::ImsufficientOperand);
             }; //引数不足
             let result = match calculation(stack[stack.len() - 2], stack[stack.len() - 1], i) {
                 Ok(result_) => result_,
@@ -197,21 +202,17 @@ fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, (u8, u8)> {
         Err(error_code) => return Err(error_code),
     }
     if stack.len() > 1 {
-        return Err((01, 04));
+        return Err(StatusCode::ImsufficientOperand);
     } else {
         return Ok(stack[stack.len() - 1]);
     }
 }
 
-fn status_code_to_boolstring(status_code: (u8, u8)) -> String {
-    match status_code.0 {
-        00 => "成功".to_string(),
+fn status_code_to_boolstring(status_code: &StatusCode) -> String {
+    match status_code {
+        StatusCode::Ok => "成功".to_string(),
         _ => "失敗".to_string(),
     }
-}
-
-fn u8_code_to_string(code: (u8, u8)) -> String {
-    join_error_code(code).to_string()
 }
 
 fn history_to_string(content: History) -> String {
@@ -219,13 +220,13 @@ fn history_to_string(content: History) -> String {
     let log_content = format!(
         "{},{},{},{},{}\n",
         content.date.to_string(),
-        status_code_to_boolstring(content.status),
+        status_code_to_boolstring(&content.status),
         content.formula,
         match content.solution {
             Ok(solution) => solution.to_string(),
             Err(error_msg) => error_msg,
         },
-        u8_code_to_string(content.status)
+        content.status.to_string()
     );
     log_content
 }
@@ -292,11 +293,11 @@ fn main() {
                 match stack_manage(delimited_input_fomula) {
                     Ok(result) => SolutionResult {
                         solution: Ok(result),
-                        status: (00, 01),
+                        status_code: (StatusCode::Ok),
                     },
                     Err(error_code) => SolutionResult {
                         solution: Err("error".to_string()),
-                        status: (error_code),
+                        status_code: (error_code),
                     },
                 }
             }
@@ -304,19 +305,19 @@ fn main() {
                 //check_syntaxが通らなかった場合
                 SolutionResult {
                     solution: Err("error".to_string()),
-                    status: (error_code),
+                    status_code: (error_code),
                 }
             }
         };
-        status_code_manage(result.status);
+        status_code_manage(&result.status_code);
         match result.solution {
             //結果がある場合のみ表示
-            Ok(solution) => println!("{}", solution),
-            Err(_) => {}
+            Ok(solution) => println!("{}\n", solution),
+            Err(_) => println!("")
         };
         log_history(History {
             date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-            status: result.status,
+            status: result.status_code,
             formula: input_formula.clone(),
             solution: match result.solution {
                 Ok(result) => Ok(result),
