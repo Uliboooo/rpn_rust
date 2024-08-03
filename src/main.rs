@@ -1,344 +1,309 @@
-use chrono::Local;
-use colored::Colorize;
 use get_input::get_input;
 use regex::Regex;
-use std::env;
-use std::fs::OpenOptions;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::BufWriter;
-use std::io::Write;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::{env, fmt, path::PathBuf, sync::OnceLock};
+use log_history::{self as his};
+use chrono::Local;
 
 static CURRENT_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-enum StatusCode {
-    Ok,
-    IncludeNonComptableCharacter,
+mod log_history {
+    use core::fmt;
+    use std::{fs::OpenOptions, io::{BufRead, BufReader, BufWriter, Write}, path::PathBuf};
+    use chrono::{DateTime, Local};
+    use crate::{ErrorCode, Solution, CURRENT_DIR};
+
+    pub struct History {
+        pub date: DateTime<Local>,
+        pub success_or_failed: SuccessOrFailed,
+        pub formula: String,
+        pub solution: Solution,
+    }
+    
+    pub enum SuccessOrFailed {
+        Success,
+        Failed,
+    }
+
+    impl fmt::Display for SuccessOrFailed {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                SuccessOrFailed::Success => write!(f, "success"),
+                SuccessOrFailed::Failed => write!(f, "failed"),
+            }
+        }
+    }
+
+    fn to_csv_line(input: History) -> String {
+        format!(
+            "{},{},{},{}\n",
+            input.date.format("%Y-%m-%d %H:%M:%S"),
+            input.success_or_failed,
+            input.formula,
+            match input.solution {
+                Solution::Success(ans) => ans.to_string(),
+                Solution::Failed(error) => error.to_string(),
+            },
+        )
+    }
+
+    fn add_csv_line(csv_path: &PathBuf, content: &String) -> Result<(), ErrorCode> {
+        let file = match OpenOptions::new().append(true).open(csv_path) {
+            Ok(file) => file,
+            Err(_) => return Err(ErrorCode::FailedAddCsvData),
+        };
+        let mut bw = BufWriter::new(file);
+        match bw.write_all(content.as_bytes()) {
+            Ok(_) => match bw.flush() {
+                Ok(_) => Ok(()),
+                Err(_) => Err(ErrorCode::FailedAddCsvData),
+            },
+            Err(_) => Err(ErrorCode::FailedAddCsvData),
+        }
+    }
+
+    fn add_csv_column(csv_path: PathBuf) -> Result<(), ErrorCode> {
+        let file = match OpenOptions::new().create(true).truncate(false).read(true).write(true).open(&csv_path) {
+            Ok(file) => file,
+            Err(_) => return Err(ErrorCode::FailedAddCsvColumn),
+        };
+        let column_str = "日付,成否,式,結果\n".to_string();
+        if let Some(line) = BufReader::new(file).lines().next() {match line {
+            Ok(line) => {
+                if line.trim() == column_str.trim() {
+                    return Ok(())
+                }
+            },
+            Err(_) => return Err(ErrorCode::FailedAddCsvColumn),
+        }}
+        match add_csv_line(&csv_path, &column_str) {
+            Ok(_) => Ok(()),
+            Err(error_code) => Err(error_code),
+        }
+    }
+
+    fn to_csv_path() -> PathBuf {
+        CURRENT_DIR
+            .get()
+            .expect("failed get current dir.")
+            .join("history.csv")
+    }
+
+    pub fn log_history(log_content: History) -> Result<(), ErrorCode>{
+        let csv_line_content = to_csv_line(log_content);
+        match add_csv_column(to_csv_path()){
+            Ok(_) => {
+                match add_csv_line(&to_csv_path(), &csv_line_content) {
+                    Ok(_) => Ok(()),
+                    Err(error_code) => Err(error_code),
+                }
+            },
+            Err(error_code) => Err(error_code),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum Solution {
+    Success(f64),
+    Failed(ErrorCode),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ErrorCode {
+    NonComptableCharacter,
     FormulaNotEntered,
     NoSpaceBetweenOperators,
-    ImsufficientOperand,
-    CannotConvertToNum,
     OperatorNotEntered,
+    FailedConvertNum,
+    ImsufficientOperand,
+    NotComplete,
     UndefinedOperator,
     ResultTooMuch,
-    // UnknownError,
+    FailedAddCsvColumn,
+    FailedAddCsvData,
 }
 
-impl StatusCode {
-    fn to_string(&self) -> String {
-        format!(
-            "{}",
-            match self {
-                StatusCode::Ok => "",
-                StatusCode::IncludeNonComptableCharacter => "計算不可能な文字が含まれています。",
-                StatusCode::FormulaNotEntered => "式が入力されていません。",
-                StatusCode::NoSpaceBetweenOperators => "演算子間にスペースが含まれていません。",
-                StatusCode::ImsufficientOperand => "非演算子(数)が足りない可能性があります。",
-                StatusCode::CannotConvertToNum => "数値に変換できませんでした。",
-                StatusCode::OperatorNotEntered => "演算子が入力されいない可能性があります。",
-                StatusCode::UndefinedOperator => "未定義の演算子が使用されました。",
-                StatusCode::ResultTooMuch => "計算結果が大きすぎます。",
-                // StatusCode::UnknownError => "原因不明のエラーです。",
-            }
-            .to_string(),
-            // "もう一度計算してください。",
-        )
-        .to_string()
+impl fmt::Display for ErrorCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ErrorCode::NonComptableCharacter => write!(f, "計算不能な文字が含まれています。"),
+            ErrorCode::FormulaNotEntered => write!(f, "式が入力されていない可能性があります。"),
+            ErrorCode::NoSpaceBetweenOperators => write!(f, "演算子間にスペースが含まれていません。"),
+            ErrorCode::OperatorNotEntered => write!(f, "演算子が入力されていません。"),
+            ErrorCode::FailedConvertNum => write!(f, "数値に変換できませんでした。"),
+            ErrorCode::ImsufficientOperand => write!(f, "被演算子(数値)が不足しています。"),
+            ErrorCode::NotComplete => write!(f, "計算が正常に完了しませんでした。"),
+            ErrorCode::UndefinedOperator => write!(f, "未定義演算子が使用されています。"),
+            ErrorCode::ResultTooMuch => write!(f, "計算結果が大きすぎます。"),
+            ErrorCode::FailedAddCsvColumn => write!(f, "ログファイル(csv)へカラムを追加できませんでした。"),
+            ErrorCode::FailedAddCsvData => write!(f, "ログファイル(csv)へデータを追加できませんでした。")
+        }
     }
 }
 
-struct History {
-    //日付、成否、入力された式、結果もしくはエラーコード
-    date: String,
-    status: StatusCode,
-    formula: String,
-    solution: Result<f64, String>,
-}
-
-struct SolutionResult {
-    solution: Result<f64, String>,
-    status_code: StatusCode,
-}
-
-fn show_error(error_code_num: &StatusCode) {
-    eprintln!(
-        "{}\nもう一度入力してください",
-        error_code_num.to_string().red()
-    );
-}
-
-fn status_code_manage(result_status: &StatusCode) {
-    match result_status {
-        StatusCode::Ok => return,
-        _ => show_error(&result_status),
-    }
-}
-
-fn check_unavailable_character(checked_string: &String) -> bool {
-    //入力に演算不可能な文字があった場合false
+fn check_unavailable_character(checked_string: &str) -> bool {
     let re = Regex::new("[^+\\-*/%1234567890 ]").unwrap();
-    if re.is_match(&checked_string) {
-        false
-    } else {
-        true
-    }
+    //reは正常値以外
+    //reにマッチした場合は不正値が含まれるため、falseを返す
+    !re.is_match(checked_string)
 }
 
-fn check_is_operator(checked_string: &String) -> bool {
-    //演算子が存在しない場合
-    let re = Regex::new(r"[+\-*/%]").unwrap();
-    if re.is_match(&checked_string) {
-        true
-    } else {
-        false
-    }
-}
-
-fn check_length(checked_string: &String) -> bool {
+fn check_length(checked_string: &str) -> bool {
     //式が入力されていない場合
-    if checked_string.len() <= 1 {
-        false
-    } else {
-        true
-    }
+    checked_string.len() > 1
 }
 
-fn check_halfspace(checked_string: &String) -> bool {
+fn check_halfspace(checked_string: &str) -> bool {
     //演算子の間のスペース
     let re = Regex::new(r"\d[^\w\s]").unwrap();
-    if re.is_match(&checked_string) {
-        false
-    } else {
-        true
-    }
+    !re.is_match(checked_string)
 }
 
-fn check_syntax(checked_string: &String) -> Result<bool, StatusCode> {
+fn check_is_operator(checked_string: &str) -> bool {
+    //演算子が存在しない場合
+    let re = Regex::new(r"[+\-*/%]").unwrap();
+    re.is_match(checked_string)
+}
+
+fn check_syntax(checked_string: &str) -> Result<bool, ErrorCode> {
     //入力された式のチェック
-    if check_unavailable_character(checked_string) == false {
-        Err(StatusCode::IncludeNonComptableCharacter)
-    } else if check_length(checked_string) == false {
-        Err(StatusCode::FormulaNotEntered)
-    } else if check_halfspace(checked_string) == false {
-        Err(StatusCode::NoSpaceBetweenOperators)
-    } else if check_is_operator(checked_string) == false {
-        Err(StatusCode::OperatorNotEntered)
+    if !check_unavailable_character(checked_string) {
+        Err(ErrorCode::NonComptableCharacter)
+    } else if !check_length(checked_string) {
+        Err(ErrorCode::FormulaNotEntered)
+    } else if !check_halfspace(checked_string) {
+        Err(ErrorCode::NoSpaceBetweenOperators)
+    } else if !check_is_operator(checked_string) {
+        Err(ErrorCode::OperatorNotEntered)
     } else {
         Ok(true)
     }
 }
 
-fn delimit(input: &String) -> Vec<&str> {
-    //文字列を空白で区切りベクタにして返す
-    input.split_whitespace().collect()
+fn to_vec(formula_str: &str) -> Vec<&str> {
+    formula_str.split_whitespace().collect()
 }
 
-fn is_numeric(input: &str) -> bool {
-    //入力が数値ならtrue, 演算子ならfalse
+fn to_num(input: &str) -> Result<f64, ErrorCode> {
     match input.parse::<f64>() {
-        Ok(_) => true,
-        Err(_) => false,
+        Ok(num) => Ok(num),
+        Err(_) => Err(ErrorCode::FailedConvertNum),
     }
 }
 
-fn to_num(input_str: &str) -> Result<f64, StatusCode> {
-    //&strを数値に変換
-    match input_str.parse::<f64>() {
-        Ok(n) => Ok(n),
-        Err(_) => Err(StatusCode::CannotConvertToNum),
+fn calculation(operands: (f64, f64), operator: &str) -> Result<f64, ErrorCode> {
+    match operator {
+        "+" => Ok(operands.0 + operands.1),
+        "-" => Ok(operands.0 - operands.1),
+        "*" => Ok(operands.0 * operands.1),
+        "/" => Ok(operands.0 / operands.1),
+        "%" => Ok(operands.0 % operands.1),
+        "^" => Ok(operands.0.powf(operands.1)),
+        _ => Err(ErrorCode::UndefinedOperator),
     }
 }
 
-fn calculation(operand_1: f64, operand_2: f64, operator: &str) -> Result<f64, StatusCode> {
-    //演算
-    Ok(match operator {
-        "+" => operand_1 + operand_2,
-        "-" => operand_1 - operand_2,
-        "*" => operand_1 * operand_2,
-        "/" => operand_1 / operand_2,
-        "%" => operand_1 % operand_2,
-        "**" => power(operand_1, operand_2),
-        _ => return Err(StatusCode::UndefinedOperator),
-    })
-}
-
-fn power(operand_1: f64, operand_2: f64) -> f64 {
-    //指数演算
-    let mut power_result = operand_1;
-    for _ in 0..operand_2 as i64 - 1 {
-        power_result *= operand_1
-    }
-    power_result
-}
-
-fn accuracy_infinite(result_f64: f64) -> Result<(), StatusCode> {
-    match result_f64.is_infinite() {
-        true => Err(StatusCode::ResultTooMuch),
-        false => Ok(()),
-    }
-}
-
-fn stack_manage(delimited_input: Vec<&str>) -> Result<f64, StatusCode> {
-    //stackの制御
-    let mut stack = Vec::<f64>::new();
-    for i in delimited_input {
-        if is_numeric(i) == true {
-            //オペランドの場合
-            stack.push(match to_num(i) {
-                Ok(result) => result,
-                Err(error_code) => return Err(error_code),
-            });
-        } else {
-            //演算子の場合
-            if stack.len() < 2 {
-                return Err(StatusCode::ImsufficientOperand);
-            }; //引数不足
-            let result = match calculation(stack[stack.len() - 2], stack[stack.len() - 1], i) {
-                Ok(result_) => result_,
-                Err(error_code) => return Err(error_code),
-            };
-            for _ in 0..2 {
-                stack.remove(stack.len() - 1); //stackのクリア
+fn manage_calculate(formula_vec: Vec<&str>) -> Result<f64, ErrorCode> {
+    let mut operands = Vec::<f64>::new();
+    for i in formula_vec {
+        match to_num(i) {
+            Ok(num) => {
+                //数値の場合
+                operands.push(num)
             }
-            stack.push(result); //結果の挿入
+            Err(_) => {
+                //演算子
+                if operands.len() < 2 {
+                    return Err(ErrorCode::ImsufficientOperand);
+                }
+                let result = match calculation(
+                    (operands[operands.len() - 2], operands[operands.len() - 1]),
+                    i,
+                ) {
+                    Ok(ans) => ans,
+                    Err(error_code) => return Err(error_code),
+                };
+                operands.drain(operands.len() - 2..operands.len());
+                operands.push(result);
+            }
         }
     }
-    match accuracy_infinite(stack[stack.len() - 1]) {
-        Ok(_) => {}
-        Err(error_code) => return Err(error_code),
-    }
-    if stack.len() > 1 {
-        return Err(StatusCode::ImsufficientOperand);
+    if operands.len() > 1 {
+        Err(ErrorCode::NotComplete)
+    } else if operands[operands.len() - 1].is_infinite() {
+        Err(ErrorCode::ResultTooMuch)
     } else {
-        return Ok(stack[stack.len() - 1]);
+        Ok(operands[operands.len() - 1])
     }
 }
 
-fn status_code_to_boolstring(status_code: &StatusCode) -> String {
-    match status_code {
-        StatusCode::Ok => "成功".to_string(),
-        _ => "失敗".to_string(),
+fn judge_success_failed(con: Solution) -> log_history::SuccessOrFailed{
+    match con {
+        Solution::Success(_) => log_history::SuccessOrFailed::Success,
+        Solution::Failed(_) => log_history::SuccessOrFailed::Failed,
     }
-}
-
-fn history_to_string(content: History) -> String {
-    //書き込み可能なStringに変換
-    let log_content = format!(
-        "{},{},{},{},{}\n",
-        content.date.to_string(),
-        status_code_to_boolstring(&content.status),
-        content.formula,
-        match content.solution {
-            Ok(solution) => solution.to_string(),
-            Err(error_msg) => error_msg,
-        },
-        content.status.to_string()
-    );
-    log_content
-}
-
-fn add_data_csv(path: &Path, content: History) {
-    //データをcsvに追加
-    let file = match OpenOptions::new().write(true).append(true).open(path) {
-        Ok(file) => file,
-        Err(_) => return,
-    };
-    let mut bw = BufWriter::new(file);
-    match bw.write(history_to_string(content).as_bytes()) {
-        Ok(_) => match bw.flush() {
-            Ok(_) => {}
-            Err(_) => return,
-        },
-        Err(_) => return,
-    }
-}
-
-fn add_column_csv(path: &Path) -> Result<(), std::io::Error> {
-    //カラムを追加
-    let file = OpenOptions::new()
-        .create(true)
-        .read(true)
-        .write(true)
-        .open(path)?;
-    let reader = BufReader::new(file);
-    let column = "日付,成否,入力された式,結果,ステータスコード";
-    let mut lines: Vec<String> = reader.lines().collect::<Result<_, _>>()?;
-    if lines.is_empty() || lines[0] != column {
-        lines.insert(0, column.to_string());
-        let mut file = OpenOptions::new().write(true).truncate(true).open(path)?;
-        for line in lines {
-            writeln!(file, "{}", line)?;
-        }
-    }
-    Ok(())
-}
-
-fn log_history(log_content: History) {
-    let path = &CURRENT_DIR
-        .get()
-        .expect("failed get dir")
-        .join("./history.csv");
-    match add_column_csv(path) {
-        Ok(_) => (),
-        Err(_) => return,
-    };
-    add_data_csv(path, log_content);
 }
 
 fn main() {
-    let path = env::current_exe().expect("Failed get path");
-    let dir = path.parent().expect("Failed get dir").to_path_buf();
-    match CURRENT_DIR.set(dir.clone()) {
-        Ok(_) => {}
-        Err(_) => {}
-    };
-    println!("{:?}", CURRENT_DIR.get());
+    if CURRENT_DIR.set(env::current_exe().expect("failed get current_exe.").parent().expect("failed get parent.").to_path_buf()).is_ok() {};
     loop {
-        println!("式を入力してください。\"n\"で終了\n例: 1 2 + 3 4 + +(値や演算子は半角スペースで区切ってください。)\n使用可能演算子: 加(+)減(-)乗(*)除(/)余(%)指(**)");
-        let input_formula = get_input();
-        if &input_formula == &"n".to_string() {
+        println!("式を入力してください。\"n\"で終了。\n例: (1 + 2)x(3 + 4) ---> 1 2 + 3 4 + *(半角スペースで区切ってください)\n演算子: 加(+)減(-)乗(*)除(/)余(%)指(^)");
+        let input_formula_str = get_input();
+        if input_formula_str == "n" {
             break;
-        };
-        let result = match check_syntax(&input_formula) {
+        }
+        let result: Solution = match check_syntax(&input_formula_str) {
             Ok(_) => {
-                //check_syntaxが通った
-                let delimited_input_fomula = delimit(&input_formula);
-                match stack_manage(delimited_input_fomula) {
-                    Ok(result) => SolutionResult {
-                        solution: Ok(result),
-                        status_code: (StatusCode::Ok),
-                    },
-                    Err(error_code) => SolutionResult {
-                        solution: Err("error".to_string()),
-                        status_code: (error_code),
-                    },
+                let formula_vec = to_vec(&input_formula_str);
+                match manage_calculate(formula_vec) {
+                    Ok(ans) => Solution::Success(ans),
+                    Err(error_code) => Solution::Failed(error_code),
                 }
             }
-            Err(error_code) => {
-                //check_syntaxが通らなかった場合
-                SolutionResult {
-                    solution: Err("error".to_string()),
-                    status_code: (error_code),
+            Err(error_code) => Solution::Failed(error_code),
+        };
+        match &result {
+            Solution::Success(ans) => println!("Ans: {}\n", ans),
+            Solution::Failed(error_code) => eprintln!("Error: {}\nもう一度入力してください。\n", error_code),
+        }
+        match his::log_history(his::History{
+            date: Local::now(),
+            success_or_failed: judge_success_failed(result.clone()),
+            formula: input_formula_str,
+            solution: result,
+        }){
+            Ok(_) => {},
+            Err(error_code) => eprintln!("Error: {}", error_code),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{check_syntax, manage_calculate, to_vec, ErrorCode, Solution};
+    #[test]
+    fn it_workd() {
+        let formula_vec = vec![
+            ("1 2 +", Solution::Success(3.0)),
+            ("1 2 + 3 4 + +", Solution::Success(10.0)),
+            ("a", Solution::Failed(ErrorCode::NonComptableCharacter)),
+            ("", Solution::Failed(ErrorCode::FormulaNotEntered)),
+            ("1+", Solution::Failed(ErrorCode::NoSpaceBetweenOperators)),
+            ("1 +", Solution::Failed(ErrorCode::ImsufficientOperand)),
+            ("1 2 + 3 4 +", Solution::Failed(ErrorCode::NotComplete)),
+        ];
+        for input_formula_str in formula_vec {
+            let result: Solution = match check_syntax(input_formula_str.0) {
+                Ok(_) => {
+                    let formula_vec = to_vec(input_formula_str.0);
+                    match manage_calculate(formula_vec) {
+                        Ok(ans) => Solution::Success(ans),
+                        Err(error_code) => Solution::Failed(error_code),
+                    }
                 }
-            }
-        };
-        status_code_manage(&result.status_code);
-        match result.solution {
-            //結果がある場合のみ表示
-            Ok(solution) => println!("{}\n", solution),
-            Err(_) => println!(""),
-        };
-        log_history(History {
-            date: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-            status: result.status_code,
-            formula: input_formula.clone(),
-            solution: match result.solution {
-                Ok(result) => Ok(result),
-                Err(errror_msg) => Err(errror_msg),
-            },
-        });
+                Err(error_code) => Solution::Failed(error_code),
+            };
+            assert_eq!(result, input_formula_str.1);
+        }
     }
 }
