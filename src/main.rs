@@ -18,6 +18,21 @@ mod log_history {
         pub formula: String,
         pub solution: Solution,
     }
+
+    impl History {
+        fn to_line(&self) -> String{
+            format!(
+                "{},{},{},{}\n",
+                &self.date.format("%Y-%m-%d %H:%M:%S"),
+                &self.success_or_failed,
+                &self.formula,
+                match &self.solution {
+                    Solution::Success(ans) => ans.to_string(),
+                    Solution::Failed(error) => error.to_string(),
+                },
+            )
+        }
+    }
     
     pub enum SuccessOrFailed {
         Success,
@@ -31,19 +46,6 @@ mod log_history {
                 SuccessOrFailed::Failed => write!(f, "failed"),
             }
         }
-    }
-
-    fn to_csv_line(input: History) -> String {
-        format!(
-            "{},{},{},{}\n",
-            input.date.format("%Y-%m-%d %H:%M:%S"),
-            input.success_or_failed,
-            input.formula,
-            match input.solution {
-                Solution::Success(ans) => ans.to_string(),
-                Solution::Failed(error) => error.to_string(),
-            },
-        )
     }
 
     fn add_csv_line(csv_path: &PathBuf, content: &String) -> Result<(), ErrorCode> {
@@ -89,10 +91,9 @@ mod log_history {
     }
 
     pub fn log_history(log_content: History) -> Result<(), ErrorCode>{
-        let csv_line_content = to_csv_line(log_content);
         match add_csv_column(to_csv_path()){
             Ok(_) => {
-                match add_csv_line(&to_csv_path(), &csv_line_content) {
+                match add_csv_line(&to_csv_path(), &log_content.to_line()) {
                     Ok(_) => Ok(()),
                     Err(error_code) => Err(error_code),
                 }
@@ -142,7 +143,7 @@ impl fmt::Display for ErrorCode {
 }
 
 fn check_unavailable_character(checked_string: &str) -> bool {
-    let re = Regex::new("[^+\\-*/%1234567890 ]").unwrap();
+    let re = Regex::new(r"[^+\-*/%^1234567890 ]").unwrap();
     //reは正常値以外
     //reにマッチした場合は不正値が含まれるため、falseを返す
     !re.is_match(checked_string)
@@ -161,7 +162,7 @@ fn check_halfspace(checked_string: &str) -> bool {
 
 fn check_is_operator(checked_string: &str) -> bool {
     //演算子が存在しない場合
-    let re = Regex::new(r"[+\-*/%]").unwrap();
+    let re = Regex::new(r"[+\-*/%^]").unwrap();
     re.is_match(checked_string)
 }
 
@@ -286,11 +287,17 @@ mod tests {
         let formula_vec = vec![
             ("1 2 +", Solution::Success(3.0)),
             ("1 2 + 3 4 + +", Solution::Success(10.0)),
+            ("1 2 -", Solution::Success(-1.0)),
+            ("1 2 *", Solution::Success(2.0)),
+            ("1 2 /", Solution::Success(0.5)),
+            ("5 2 %", Solution::Success(1.0)),
+            ("2 5 ^", Solution::Success(32.0)),
             ("a", Solution::Failed(ErrorCode::NonComptableCharacter)),
             ("", Solution::Failed(ErrorCode::FormulaNotEntered)),
             ("1+", Solution::Failed(ErrorCode::NoSpaceBetweenOperators)),
             ("1 +", Solution::Failed(ErrorCode::ImsufficientOperand)),
             ("1 2 + 3 4 +", Solution::Failed(ErrorCode::NotComplete)),
+            ("100 1000 ^", Solution::Failed(ErrorCode::ResultTooMuch)),
         ];
         for input_formula_str in formula_vec {
             let result: Solution = match check_syntax(input_formula_str.0) {
