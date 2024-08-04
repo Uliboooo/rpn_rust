@@ -1,16 +1,20 @@
+use chrono::Local;
 use get_input::get_input;
+use log_history::{self as his};
 use regex::Regex;
 use std::{env, fmt, path::PathBuf, sync::OnceLock};
-use log_history::{self as his};
-use chrono::Local;
 
 static CURRENT_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 mod log_history {
-    use core::fmt;
-    use std::{fs::OpenOptions, io::{BufRead, BufReader, BufWriter, Write}, path::PathBuf};
-    use chrono::{DateTime, Local};
     use crate::{ErrorCode, Solution, CURRENT_DIR};
+    use chrono::{DateTime, Local};
+    use core::fmt;
+    use std::{
+        fs::OpenOptions,
+        io::{BufRead, BufReader, BufWriter, Write},
+        path::PathBuf,
+    };
 
     pub struct History {
         pub date: DateTime<Local>,
@@ -20,7 +24,7 @@ mod log_history {
     }
 
     impl History {
-        fn to_line(&self) -> String{
+        fn to_line(&self) -> String {
             format!(
                 "{},{},{},{}\n",
                 &self.date.format("%Y-%m-%d %H:%M:%S"),
@@ -33,7 +37,7 @@ mod log_history {
             )
         }
     }
-    
+
     pub enum SuccessOrFailed {
         Success,
         Failed,
@@ -64,19 +68,27 @@ mod log_history {
     }
 
     fn add_csv_column(csv_path: PathBuf) -> Result<(), ErrorCode> {
-        let file = match OpenOptions::new().create(true).truncate(false).read(true).write(true).open(&csv_path) {
+        let file = match OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&csv_path)
+        {
             Ok(file) => file,
             Err(_) => return Err(ErrorCode::FailedAddCsvColumn),
         };
         let column_str = "日付,成否,式,結果\n".to_string();
-        if let Some(line) = BufReader::new(file).lines().next() {match line {
-            Ok(line) => {
-                if line.trim() == column_str.trim() {
-                    return Ok(())
+        if let Some(line) = BufReader::new(file).lines().next() {
+            match line {
+                Ok(line) => {
+                    if line.trim() == column_str.trim() {
+                        return Ok(());
+                    }
                 }
-            },
-            Err(_) => return Err(ErrorCode::FailedAddCsvColumn),
-        }}
+                Err(_) => return Err(ErrorCode::FailedAddCsvColumn),
+            }
+        }
         match add_csv_line(&csv_path, &column_str) {
             Ok(_) => Ok(()),
             Err(error_code) => Err(error_code),
@@ -90,13 +102,11 @@ mod log_history {
             .join("history.csv")
     }
 
-    pub fn log_history(log_content: History) -> Result<(), ErrorCode>{
-        match add_csv_column(to_csv_path()){
-            Ok(_) => {
-                match add_csv_line(&to_csv_path(), &log_content.to_line()) {
-                    Ok(_) => Ok(()),
-                    Err(error_code) => Err(error_code),
-                }
+    pub fn log_history(log_content: History) -> Result<(), ErrorCode> {
+        match add_csv_column(to_csv_path()) {
+            Ok(_) => match add_csv_line(&to_csv_path(), &log_content.to_line()) {
+                Ok(_) => Ok(()),
+                Err(error_code) => Err(error_code),
             },
             Err(error_code) => Err(error_code),
         }
@@ -129,15 +139,21 @@ impl fmt::Display for ErrorCode {
         match self {
             ErrorCode::NonComptableCharacter => write!(f, "計算不能な文字が含まれています。"),
             ErrorCode::FormulaNotEntered => write!(f, "式が入力されていない可能性があります。"),
-            ErrorCode::NoSpaceBetweenOperators => write!(f, "演算子間にスペースが含まれていません。"),
+            ErrorCode::NoSpaceBetweenOperators => {
+                write!(f, "演算子間にスペースが含まれていません。")
+            }
             ErrorCode::OperatorNotEntered => write!(f, "演算子が入力されていません。"),
             ErrorCode::FailedConvertNum => write!(f, "数値に変換できませんでした。"),
             ErrorCode::ImsufficientOperand => write!(f, "被演算子(数値)が不足しています。"),
             ErrorCode::NotComplete => write!(f, "計算が正常に完了しませんでした。"),
             ErrorCode::UndefinedOperator => write!(f, "未定義演算子が使用されています。"),
             ErrorCode::ResultTooMuch => write!(f, "計算結果が大きすぎます。"),
-            ErrorCode::FailedAddCsvColumn => write!(f, "ログファイル(csv)へカラムを追加できませんでした。"),
-            ErrorCode::FailedAddCsvData => write!(f, "ログファイル(csv)へデータを追加できませんでした。")
+            ErrorCode::FailedAddCsvColumn => {
+                write!(f, "ログファイル(csv)へカラムを追加できませんでした。")
+            }
+            ErrorCode::FailedAddCsvData => {
+                write!(f, "ログファイル(csv)へデータを追加できませんでした。")
+            }
         }
     }
 }
@@ -166,7 +182,7 @@ fn check_is_operator(checked_string: &str) -> bool {
     re.is_match(checked_string)
 }
 
-fn check_syntax(checked_string: &str) -> Result<bool, ErrorCode> {
+fn check_syntax(checked_string: &str) -> Result<(), ErrorCode> {
     //入力された式のチェック
     if !check_unavailable_character(checked_string) {
         Err(ErrorCode::NonComptableCharacter)
@@ -177,7 +193,7 @@ fn check_syntax(checked_string: &str) -> Result<bool, ErrorCode> {
     } else if !check_is_operator(checked_string) {
         Err(ErrorCode::OperatorNotEntered)
     } else {
-        Ok(true)
+        Ok(())
     }
 }
 
@@ -238,7 +254,7 @@ fn manage_calculate(formula_vec: Vec<&str>) -> Result<f64, ErrorCode> {
     }
 }
 
-fn judge_success_failed(con: Solution) -> log_history::SuccessOrFailed{
+fn judge_success_failed(con: Solution) -> log_history::SuccessOrFailed {
     match con {
         Solution::Success(_) => log_history::SuccessOrFailed::Success,
         Solution::Failed(_) => log_history::SuccessOrFailed::Failed,
@@ -246,7 +262,16 @@ fn judge_success_failed(con: Solution) -> log_history::SuccessOrFailed{
 }
 
 fn main() {
-    if CURRENT_DIR.set(env::current_exe().expect("failed get current_exe.").parent().expect("failed get parent.").to_path_buf()).is_ok() {};
+    if CURRENT_DIR
+        .set(
+            env::current_exe()
+                .expect("failed get current_exe.")
+                .parent()
+                .expect("failed get parent.")
+                .to_path_buf(),
+        )
+        .is_ok()
+    {};
     loop {
         println!("式を入力してください。\"n\"で終了。\n例: (1 + 2)x(3 + 4) ---> 1 2 + 3 4 + *(半角スペースで区切ってください)\n演算子: 加(+)減(-)乗(*)除(/)余(%)指(^)");
         let input_formula_str = get_input();
@@ -265,15 +290,17 @@ fn main() {
         };
         match &result {
             Solution::Success(ans) => println!("Ans: {}\n", ans),
-            Solution::Failed(error_code) => eprintln!("Error: {}\nもう一度入力してください。\n", error_code),
+            Solution::Failed(error_code) => {
+                eprintln!("Error: {}\nもう一度入力してください。\n", error_code)
+            }
         }
-        match his::log_history(his::History{
+        match his::log_history(his::History {
             date: Local::now(),
             success_or_failed: judge_success_failed(result.clone()),
             formula: input_formula_str,
             solution: result,
-        }){
-            Ok(_) => {},
+        }) {
+            Ok(_) => {}
             Err(error_code) => eprintln!("Error: {}", error_code),
         }
     }
