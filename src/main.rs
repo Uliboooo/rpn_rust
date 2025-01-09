@@ -1,8 +1,8 @@
 use chrono::Local;
 use get_input::get_input;
+use log::{log_history, History, SuccessOrFailed};
 use regex::Regex;
 use std::{env, fmt, path::PathBuf, sync::OnceLock};
-use log::{History, SuccessOrFailed, log_history};
 
 mod log;
 
@@ -16,12 +16,12 @@ enum Solution {
 
 #[derive(Debug, Clone, PartialEq)]
 enum ErrorCode {
-    NonComptableCharacter,
+    NoncalculableCharacter,
     FormulaNotEntered,
     NoSpaceBetweenOperators,
     OperatorNotEntered,
     FailedConvertNum,
-    ImsufficientOperand,
+    InsufficientOperand,
     NotComplete,
     UndefinedOperator,
     ResultTooMuch,
@@ -32,14 +32,14 @@ enum ErrorCode {
 impl fmt::Display for ErrorCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorCode::NonComptableCharacter => write!(f, "計算不能な文字が含まれています。"),
+            ErrorCode::NoncalculableCharacter => write!(f, "計算不能な文字が含まれています。"),
             ErrorCode::FormulaNotEntered => write!(f, "式が入力されていない可能性があります。"),
             ErrorCode::NoSpaceBetweenOperators => {
                 write!(f, "演算子間にスペースが含まれていません。")
             }
             ErrorCode::OperatorNotEntered => write!(f, "演算子が入力されていません。"),
             ErrorCode::FailedConvertNum => write!(f, "数値に変換できませんでした。"),
-            ErrorCode::ImsufficientOperand => write!(f, "被演算子(数値)が不足しています。"),
+            ErrorCode::InsufficientOperand => write!(f, "被演算子(数値)が不足しています。"),
             ErrorCode::NotComplete => write!(f, "計算が正常に完了しませんでした。"),
             ErrorCode::UndefinedOperator => write!(f, "未定義演算子が使用されています。"),
             ErrorCode::ResultTooMuch => write!(f, "計算結果が大きすぎます。"),
@@ -65,7 +65,7 @@ fn check_length(checked_string: &str) -> bool {
     checked_string.len() > 1
 }
 
-fn check_halfspace(checked_string: &str) -> bool {
+fn check_half_space(checked_string: &str) -> bool {
     //演算子の間のスペース
     let re = Regex::new(r"\d[^\w\s]").unwrap();
     !re.is_match(checked_string)
@@ -80,10 +80,10 @@ fn check_is_operator(checked_string: &str) -> bool {
 fn check_syntax(checked_string: &str) -> Result<(), ErrorCode> {
     //入力された式のチェック
     if !check_unavailable_character(checked_string) {
-        Err(ErrorCode::NonComptableCharacter)
+        Err(ErrorCode::NoncalculableCharacter)
     } else if !check_length(checked_string) {
         Err(ErrorCode::FormulaNotEntered)
-    } else if !check_halfspace(checked_string) {
+    } else if !check_half_space(checked_string) {
         Err(ErrorCode::NoSpaceBetweenOperators)
     } else if !check_is_operator(checked_string) {
         Err(ErrorCode::OperatorNotEntered)
@@ -126,15 +126,12 @@ fn manage_calculate(formula_vec: Vec<&str>) -> Result<f64, ErrorCode> {
             Err(_) => {
                 //演算子
                 if operands.len() < 2 {
-                    return Err(ErrorCode::ImsufficientOperand);
+                    return Err(ErrorCode::InsufficientOperand);
                 }
-                let result = match calculation(
+                let result = calculation(
                     (operands[operands.len() - 2], operands[operands.len() - 1]),
                     i,
-                ) {
-                    Ok(ans) => ans,
-                    Err(error_code) => return Err(error_code),
-                };
+                )?;
                 operands.drain(operands.len() - 2..operands.len());
                 operands.push(result);
             }
@@ -169,7 +166,7 @@ fn main() {
     {};
     loop {
         println!("式を入力してください。\"n\"で終了。\n例: (1 + 2)x(3 + 4) ---> 1 2 + 3 4 + *(半角スペースで区切ってください)\n演算子: 加(+)減(-)乗(*)除(/)余(%)指(^)");
-        let input_formula_str = get_input();
+        let input_formula_str = get_input(">");
         if input_formula_str == "n" {
             break;
         }
@@ -205,7 +202,7 @@ fn main() {
 mod tests {
     use crate::{check_syntax, manage_calculate, to_vec, ErrorCode, Solution};
     #[test]
-    fn it_workd() {
+    fn it_works() {
         let formula_vec = vec![
             ("1 2 +", Solution::Success(3.0)),
             ("1 2 + 3 4 + +", Solution::Success(10.0)),
@@ -214,10 +211,10 @@ mod tests {
             ("1 2 /", Solution::Success(0.5)),
             ("5 2 %", Solution::Success(1.0)),
             ("2 5 ^", Solution::Success(32.0)),
-            ("a", Solution::Failed(ErrorCode::NonComptableCharacter)),
+            ("a", Solution::Failed(ErrorCode::NoncalculableCharacter)),
             ("", Solution::Failed(ErrorCode::FormulaNotEntered)),
             ("1+", Solution::Failed(ErrorCode::NoSpaceBetweenOperators)),
-            ("1 +", Solution::Failed(ErrorCode::ImsufficientOperand)),
+            ("1 +", Solution::Failed(ErrorCode::InsufficientOperand)),
             ("1 2 + 3 4 +", Solution::Failed(ErrorCode::NotComplete)),
             ("100 1000 ^", Solution::Failed(ErrorCode::ResultTooMuch)),
         ];
